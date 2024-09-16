@@ -1,0 +1,26 @@
+2024-09-16 05:52:28.113 UTC [212] LOG:  starting PostgreSQL 16.4 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0, 64-bit
+2024-09-16 05:52:28.114 UTC [212] LOG:  listening on IPv6 address "::1", port 5432
+2024-09-16 05:52:28.114 UTC [212] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-09-16 05:52:28.124 UTC [212] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-09-16 05:52:28.138 UTC [215] LOG:  database system was shut down at 2024-09-16 05:52:18 UTC
+2024-09-16 05:52:28.149 UTC [212] LOG:  database system is ready to accept connections
+2024-09-16 05:54:53.821 UTC [212] LOG:  received fast shutdown request
+2024-09-16 05:54:53.827 UTC [212] LOG:  aborting any active transactions
+2024-09-16 05:54:53.829 UTC [212] LOG:  background worker "logical replication launcher" (PID 218) exited with exit code 1
+2024-09-16 05:54:53.829 UTC [213] LOG:  shutting down
+2024-09-16 05:54:53.835 UTC [213] LOG:  checkpoint starting: shutdown immediate
+2024-09-16 05:54:53.871 UTC [213] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.012 s, sync=0.005 s, total=0.042 s; sync files=2, longest=0.003 s, average=0.003 s; distance=0 kB, estimate=0 kB; lsn=0/1528878, redo lsn=0/1528878
+2024-09-16 05:54:53.877 UTC [212] LOG:  database system is shut down
+2024-09-16 05:55:53.321 UTC [248] LOG:  starting PostgreSQL 16.4 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0, 64-bit
+2024-09-16 05:55:53.321 UTC [248] LOG:  listening on IPv6 address "::1", port 5432
+2024-09-16 05:55:53.322 UTC [248] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-09-16 05:55:53.331 UTC [248] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-09-16 05:55:53.344 UTC [251] LOG:  database system was shut down at 2024-09-16 05:54:53 UTC
+2024-09-16 05:55:53.354 UTC [248] LOG:  database system is ready to accept connections
+2024-09-16 05:57:08.130 UTC [248] LOG:  received fast shutdown request
+2024-09-16 05:57:08.136 UTC [248] LOG:  aborting any active transactions
+2024-09-16 05:57:08.137 UTC [248] LOG:  background worker "logical replication launcher" (PID 254) exited with exit code 1
+2024-09-16 05:57:08.137 UTC [249] LOG:  shutting down
+2024-09-16 05:57:08.144 UTC [249] LOG:  checkpoint starting: shutdown immediate
+2024-09-16 05:57:08.182 UTC [249] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.012 s, sync=0.006 s, total=0.045 s; sync files=2, longest=0.003 s, average=0.003 s; distance=0 kB, estimate=0 kB; lsn=0/1528928, redo lsn=0/1528928
+2024-09-16 05:57:08.185 UTC [248] LOG:  database system is shut down
