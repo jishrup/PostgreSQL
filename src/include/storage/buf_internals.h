@@ -78,6 +78,14 @@
 #define BM_MAX_USAGE_COUNT	5
 
 /*
+ * This flag enables the FIFO buffer management policy as an alternative
+ * to the clock-sweep buffer management algorithm. Use this flag to switch
+ * to the new policy wherever applicable in the existing buffer management
+ * code.
+ */
+#define BM_BUF_TYPE_FIFO 1
+
+/*
  * Buffer tag identifies which disk block the buffer contains.
  *
  * Note: the BufferTag data must be sufficient to determine where to write the

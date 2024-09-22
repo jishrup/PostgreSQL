@@ -23,6 +23,7 @@
 
 #define INT_ACCESS_ONCE(var)	((int)(*((volatile int *)&(var))))
 
+#ifndef BM_BUF_TYPE_FIFO // clock-sweep buffer management algorithm
 
 /*
  * The shared freelist control information.
@@ -772,3 +773,291 @@ StrategyRejectBuffer(BufferAccessStrategy strategy, BufferDesc *buf, bool from_r
 
 	return true;
 }
+
+#else // FIFO buffer management algorithm.
+
+/*From here on the new fucntions and structures needed for FIFO buffer management system are written.*/
+
+/* Forward declaration of FIFOBufferNode */
+struct FIFOBufferNode;
+
+/*
+ * Individual block of Buffers in the FIFO queue.
+ */
+typedef struct
+{
+	BufferDesc        *buf;
+	struct FIFOBufferNode    *next;
+
+} FIFOBufferNode;
+
+
+/*
+ * The shared freelist control information for FIFO buffer management system.
+ * Private (non-shared) state for managing a FIFO buffer management system to re-use.
+ */
+typedef struct
+{
+	/* Spinlock: protects the values below */
+	slock_t		       buffer_strategy_lock;
+
+	/*
+	 * Statistic variables indicating maximum size allowed in the 
+	 * FIFO queue and the current size of the FIFO queue. 
+	 * Note : max_size is always greater than equal to cursize.
+	 */
+	int 		       max_size;
+	int 		       cur_size;
+
+	/*
+	 * Indicates the head and tail of the FIFO queue.
+	 */
+	FIFOBufferNode    *first_buffer;
+	FIFOBufferNode    *last_buffer;
+
+	/*
+	 * Bgworker process to be notified upon activity or -1 if none. See
+	 * StrategyNotifyBgWriter.
+	 */
+	int			       bgwprocno;
+} FIFOBufferStrategyControl;
+
+/*
+ * Private (non-shared) state for managing a ring of shared buffers to re-use.
+ * This is currently the only kind of BufferAccessStrategy object, but someday
+ * we might have more kinds.
+ * 
+ * Note : this will not be used for FIFO implementation, just for supporting other
+ * fucntionality this is added here.
+ */
+typedef struct BufferAccessStrategyData
+{
+	/* Overall strategy type */
+	BufferAccessStrategyType btype;
+	/* Number of elements in buffers[] array */
+	int			nbuffers;
+
+	/*
+	 * Index of the "current" slot in the ring, ie, the one most recently
+	 * returned by GetBufferFromRing.
+	 */
+	int			current;
+
+	/*
+	 * Array of buffer numbers.  InvalidBuffer (that is, zero) indicates we
+	 * have not yet selected a buffer for this ring slot.  For allocation
+	 * simplicity this is palloc'd together with the fixed fields of the
+	 * struct.
+	 */
+	Buffer		buffers[FLEXIBLE_ARRAY_MEMBER];
+}			BufferAccessStrategyData;
+
+
+/*
+ * StrategyGetBuffer
+ *
+ *	Called by the bufmgr to get the next candidate buffer to use in
+ *	BufferAlloc(). The only hard requirement BufferAlloc() has is that
+ *	the selected buffer must not currently be pinned by anyone.
+ *
+ *	strategy is a BufferAccessStrategy object, or NULL for default strategy.
+ *
+ *	To ensure that no one else can pin the buffer before we do, we must
+ *	return the buffer with the buffer header spinlock still held.
+ */
+BufferDesc *
+StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring)
+{
+	return NULL;
+}
+
+/*
+ * StrategyFreeBuffer: put a buffer on the freelist
+ */
+void
+StrategyFreeBuffer(BufferDesc *buf)
+{
+	return;
+}
+
+/*
+ * have_free_buffer -- a lockless check to see if there is a free buffer in
+ *					   buffer pool.
+ *
+ * If the result is true that will become stale once free buffers are moved out
+ * by other operations, so the caller who strictly want to use a free buffer
+ * should not call this.
+ */
+bool
+have_free_buffer(void)
+{
+	return false;
+}
+
+/*
+ * StrategySyncStart -- tell BufferSync where to start syncing
+ *
+ * The result is the buffer index of the best buffer to sync first.
+ * BufferSync() will proceed circularly around the buffer array from there.
+ *
+ * In addition, we return the completed-pass count (which is effectively
+ * the higher-order bits of nextVictimBuffer) and the count of recent buffer
+ * allocs if non-NULL pointers are passed.  The alloc count is reset after
+ * being read.
+ */
+int
+StrategySyncStart(uint32 *complete_passes, uint32 *num_buf_alloc)
+{
+	int result = 0;
+	*complete_passes = 0;
+	*num_buf_alloc = 0;
+
+	return result;
+}
+
+/*
+ * StrategyNotifyBgWriter -- set or clear allocation notification latch
+ *
+ * If bgwprocno isn't -1, the next invocation of StrategyGetBuffer will
+ * set that latch.  Pass -1 to clear the pending notification before it
+ * happens.  This feature is used by the bgwriter process to wake itself up
+ * from hibernation, and is not meant for anybody else to use.
+ */
+void
+StrategyNotifyBgWriter(int bgwprocno)
+{
+	(void)bgwprocno;
+	return;
+}
+
+/*
+ * StrategyShmemSize
+ *
+ * estimate the size of shared memory used by the freelist-related structures.
+ *
+ * Note: for somewhat historical reasons, the buffer lookup hashtable size
+ * is also determined here.
+ */
+Size
+StrategyShmemSize(void)
+{
+	Size		size = 0;
+
+	return size;
+}
+
+/*
+ * StrategyInitialize -- initialize the buffer cache replacement
+ *		strategy.
+ *
+ * Assumes: All of the buffers are already built into a linked list.
+ *		Only called by postmaster and only during initialization.
+ */
+void
+StrategyInitialize(bool init)
+{
+	return;
+}
+
+/* ----------------------------------------------------------------
+ *				Backend-private buffer ring management
+ * ----------------------------------------------------------------
+ */
+
+/*
+ * GetAccessStrategy - Since its FIFO queue, the access strategy is gonna be normal for all the type.
+ * So return NULL for all cases.
+ */
+BufferAccessStrategy
+GetAccessStrategy(BufferAccessStrategyType btype)
+{
+	(void)btype;
+	return NULL;
+}
+
+/*
+ * GetAccessStrategyWithSize - We are returning NULL for all cases for FIFO
+ */
+BufferAccessStrategy
+GetAccessStrategyWithSize(BufferAccessStrategyType btype, int ring_size_kb)
+{
+	(void) btype;
+	(void) ring_size_kb;
+
+	return NULL;
+}
+
+/*
+ * GetAccessStrategyBufferCount -- an accessor for the number of buffers in
+ *		the ring
+ *
+ * Returns 0 on NULL input to match behavior of GetAccessStrategyWithSize()
+ * returning NULL with 0 size.
+ */
+int
+GetAccessStrategyBufferCount(BufferAccessStrategy strategy)
+{
+	if (strategy == NULL)
+		return 0;
+
+	return strategy->nbuffers;
+}
+
+/*
+ * FreeAccessStrategy -- release a BufferAccessStrategy object
+ *
+ * A simple pfree would do at the moment, but we would prefer that caller
+ * don't assume that much about the representation of BufferAccessStrateg
+ */
+void
+FreeAccessStrategy(BufferAccessStrategy strategy)
+{
+	/* don't crash if called on a "default" strategy */
+	if (strategy != NULL)
+		pfree(strategy);
+}
+
+/*
+ * IOContextForStrategy - We return IOCONTEXT_NORMAL for all FIFO cases.
+ */
+IOContext
+IOContextForStrategy(BufferAccessStrategy strategy)
+{
+	(void) strategy;
+
+	return IOCONTEXT_NORMAL;
+}
+
+/*
+ * StrategyRejectBuffer -- consider rejecting a dirty buffer
+ *
+ * When a nondefault strategy is used, the buffer manager calls this function
+ * when it turns out that the buffer selected by StrategyGetBuffer needs to
+ * be written out and doing so would require flushing WAL too.  This gives us
+ * a chance to choose a different victim.
+ *
+ * Returns true if buffer manager should ask for a new victim, and false
+ * if this buffer should be written and re-used.
+ */
+bool
+StrategyRejectBuffer(BufferAccessStrategy strategy, BufferDesc *buf, bool from_ring)
+{
+	/* We only do this in bulkread mode */
+	if (strategy->btype != BAS_BULKREAD)
+		return false;
+
+	/* Don't muck with behavior of normal buffer-replacement strategy */
+	if (!from_ring ||
+		strategy->buffers[strategy->current] != BufferDescriptorGetBuffer(buf))
+		return false;
+
+	/*
+	 * Remove the dirty buffer from the ring; necessary to prevent infinite
+	 * loop if all ring members are dirty.
+	 */
+	strategy->buffers[strategy->current] = InvalidBuffer;
+
+	return true;
+}
+
+#endif //BM_BUF_TYPE_FIFO
