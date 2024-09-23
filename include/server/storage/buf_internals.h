@@ -83,7 +83,7 @@
  * to the new policy wherever applicable in the existing buffer management
  * code.
  */
-#define BM_BUF_TYPE_FIFO 1
+#define BM_BUF_TYPE_CLOCK 1
 
 /*
  * Buffer tag identifies which disk block the buffer contains.
