@@ -24,7 +24,7 @@
 
 #define INT_ACCESS_ONCE(var)	((int)(*((volatile int *)&(var))))
 
-#ifdef BM_BUF_TYPE_CLOCK // clock-sweep buffer management algorithm
+#if BM_BUF_TYPE_CLOCK // clock-sweep buffer management algorithm
 
 /*
  * The shared freelist control information.
@@ -886,11 +886,13 @@ StrategyFreeBuffer(BufferDesc *buf)
 			 * pointer to the next node in the queue, then assign the buffer to it.
 			 */
 			StrategyControl->cur_last_buffer = StrategyControl->cur_last_buffer->next;
+			Assert(StrategyControl->cur_last_buffer != NULL);
 			StrategyControl->cur_last_buffer->buf = buf;
 		}
 
 		/* Increment the queue size */
 		StrategyControl->cur_size++;
+		Assert(StrategyControl->cur_size != NBuffers);
 
 		/*
 		 * Mark the buffer as part of the queue by setting its `freeNext`
@@ -914,7 +916,7 @@ StrategyFreeBuffer(BufferDesc *buf)
 bool
 have_free_buffer(void)
 {
-	if (StrategyControl->cur_size != StrategyControl->max_size - 1)
+	if (StrategyControl->cur_size < StrategyControl->max_size)
 		return true;
 	else
 		return false;
@@ -933,22 +935,25 @@ have_free_buffer(void)
 int
 StrategySyncStart(uint32 *complete_passes, uint32 *num_buf_alloc)
 {
-    int result = INT32_MAX; // Initialize with an invalid buffer ID
+    int result                = INT32_MAX; // Initialize with an invalid buffer ID
     BufferDesc *buf;
     uint32 local_buf_state;
 	FIFOBufferNode *fifo_node = StrategyControl->first_buffer;
+	int max_iterations        = NBuffers; // Safeguard to prevent infinite loop
 
     /* Acquire spinlock to protect shared state */
     SpinLockAcquire(&StrategyControl->buffer_strategy_lock);
 
     /* Iterate through all buffers in the pool to find the first dirty buffer which has lowest buffer id */
-    while(fifo_node != StrategyControl->cur_last_buffer)
+    while(fifo_node != StrategyControl->cur_last_buffer && max_iterations > 0)
     {
+		max_iterations--;
+
         buf = fifo_node->buf;  
         local_buf_state = LockBufHdr(buf);  // Lock the buffer header to inspect its state
 
         /* Check if the buffer is dirty */
-        if ((local_buf_state & BM_DIRTY) && result < buf->buf_id)
+        if ((local_buf_state & BM_DIRTY) && buf->buf_id < result)
         {
             result = buf->buf_id;  // Set the result to the current buffer ID		
         }
@@ -962,12 +967,18 @@ StrategySyncStart(uint32 *complete_passes, uint32 *num_buf_alloc)
 	local_buf_state = LockBufHdr(buf);  // Lock the buffer header to inspect its state
 
 	/* Check if the buffer is dirty */
-	if ((local_buf_state & BM_DIRTY) && result < buf->buf_id)
+	if ((local_buf_state & BM_DIRTY) && buf->buf_id < result)
 	{
    		result = buf->buf_id;  // Set the result to the current buffer ID		
 	}
 
 	UnlockBufHdr(buf, local_buf_state);  // Unlock the buffer header
+
+	if (max_iterations == 0)
+    {
+        SpinLockRelease(&StrategyControl->buffer_strategy_lock);
+        return -1;  // Error: loop terminated unexpectedly
+    }
 
     if (complete_passes)
     {
@@ -1081,6 +1092,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		fifo_node = fifo_node->next;
 
 		buf = fifo_node->buf;
+		Assert(buf->freeNext != FREENEXT_NOT_IN_LIST);
+		
 		/* Lock the buffer header to examine its state */
 		local_buf_state = LockBufHdr(buf);
 	}
@@ -1096,6 +1109,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		/* Release the spinlock */
 		SpinLockRelease(&StrategyControl->buffer_strategy_lock);
 
+		Assert(buf->freeNext != FREENEXT_NOT_IN_LIST);
 		buf->freeNext = FREENEXT_NOT_IN_LIST;
 		return buf;
 	} else {
@@ -1122,6 +1136,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		/* Release the spinlock */
 		SpinLockRelease(&StrategyControl->buffer_strategy_lock);
 
+		Assert(buf->freeNext != FREENEXT_NOT_IN_LIST);
 		buf->freeNext = FREENEXT_NOT_IN_LIST;
 		return buf;
 	}
@@ -1183,9 +1198,9 @@ StrategyShmemSize(void)
 void
 StrategyInitialize(bool init)
 {
-	bool		       found;      
+	bool		       found = false;      
 	FIFOBufferNode    *node;
-	FIFOBufferNode    *prev_node;
+	FIFOBufferNode    *prev_node = NULL;
 
 	/*
 	 * Initialize the shared buffer lookup hashtable.
@@ -1226,6 +1241,10 @@ StrategyInitialize(bool init)
 		 */
 		for(int i = 0; i < NBuffers; i++) {
 			node = (FIFOBufferNode *)palloc(sizeof(FIFOBufferNode));
+
+			if (node == NULL) {
+    			elog(ERROR, "Memory allocation failed for FIFOBufferNode.");
+			}
 
 			if(StrategyControl->first_buffer == NULL) {
 				StrategyControl->first_buffer = node;
